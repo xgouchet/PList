@@ -5,8 +5,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import android.nfc.FormatException;
-
 public class PDict extends PObject implements Iterable<Entry<String, PObject>> {
 
 	/**
@@ -27,9 +25,11 @@ public class PDict extends PObject implements Iterable<Entry<String, PObject>> {
 	/**
 	 * 
 	 */
-	public void setEntry(PObject key, PObject value) throws FormatException {
+	public void setEntry(PObject key, PObject value)
+			throws IllegalArgumentException {
 		if (!PString.class.isAssignableFrom(key.getClass())) {
-			throw new FormatException("Dictionary keys must be strings");
+			throw new IllegalArgumentException(
+					"Dictionary keys must be strings");
 		}
 
 		PString strKey = (PString) key;

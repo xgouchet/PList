@@ -1,12 +1,13 @@
 package fr.xgouchet.plist;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.NotSerializableException;
 import java.math.BigInteger;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
+import java.text.ParseException;
 
-import android.nfc.FormatException;
 import android.util.Base64;
 import android.util.Log;
 import fr.xgouchet.plist.data.PArray;
@@ -27,8 +28,8 @@ public class PlistParser {
 	private static final int TRAILER_SIZE = 0x20;
 
 	private static final int MARKER_NULL = 0x00;
-	private static final int MARKER_TRUE = 0x08;
-	private static final int MARKER_FALSE = 0x09;
+	private static final int MARKER_FALSE = 0x08;
+	private static final int MARKER_TRUE = 0x09;
 	private static final int MARKER_FILL = 0x0F;
 
 	private static final int TYPE_NBF = 0x00;
@@ -56,8 +57,8 @@ public class PlistParser {
 	 * @throws IOException
 	 *             if the input can't be read
 	 */
-	public PObject parse(final InputStream input) throws IOException,
-			FormatException {
+	public PObject parse(final InputStream input)
+			throws NotSerializableException, EOFException, IOException {
 		// TODO is.available may not be accurate !!!
 		mData = new byte[input.available()];
 		input.read(mData);
@@ -67,7 +68,8 @@ public class PlistParser {
 
 	}
 
-	private PObject parseBinaryPlist() throws FormatException {
+	private PObject parseBinaryPlist() throws EOFException,
+			NotSerializableException {
 		readHeader();
 		readTrailer();
 		readOffsetTable();
@@ -78,12 +80,12 @@ public class PlistParser {
 	/**
 	 * Reads the Plist header
 	 */
-	private void readHeader() throws FormatException {
+	private void readHeader() throws NotSerializableException {
 		String bplist = new String(mData, 0, 6);
 		String version = new String(mData, 6, 2);
 
 		if (!"bplist".equalsIgnoreCase(bplist)) {
-			throw new FormatException(
+			throw new NotSerializableException(
 					"File is not a binary property list : wrong header");
 		}
 
@@ -104,9 +106,9 @@ public class PlistParser {
 	 * <li>4 nul bytes</li>
 	 * <li>4 bytes : table offset</li>
 	 */
-	private void readTrailer() throws FormatException {
+	private void readTrailer() throws EOFException {
 		if (mData.length < 32) {
-			throw new FormatException(
+			throw new EOFException(
 					"File is truncated or corrupted : missing trailer");
 		}
 
@@ -135,9 +137,9 @@ public class PlistParser {
 	/**
 	 * Reads the plist offset table
 	 */
-	private void readOffsetTable() throws FormatException {
+	private void readOffsetTable() throws EOFException {
 		if (mData.length < (mOffsetTableOffset + (mObjectCount * mOffsetSize))) {
-			throw new FormatException(
+			throw new EOFException(
 					"File is truncated or corrupted : missing offset table");
 		}
 
@@ -160,7 +162,7 @@ public class PlistParser {
 	 *            the reference of the object to read
 	 * @return the object read
 	 */
-	private PObject readPObject(int ref) throws FormatException {
+	private PObject readPObject(int ref) {
 		mParserOffset = mOffsetTable[ref];
 		return readPobject();
 	}
@@ -168,7 +170,7 @@ public class PlistParser {
 	/**
 	 * @return the object read at the current offset
 	 */
-	private PObject readPobject() throws FormatException {
+	private PObject readPobject() {
 		PObject object;
 
 		final int marker = readMarker();
@@ -257,16 +259,25 @@ public class PlistParser {
 	 */
 	private PInt readInt(final int marker) {
 		int count = 1 << (marker & 0XF);
+		long value = 0;
+		if (count <= 8) {
+			for (int i = 0; i < count; ++i) {
+				value <<= 8;
+				value |= mData[mParserOffset] & 0xFF;
+				mParserOffset++;
+			}
+		} else {
+			byte[] bytes = new byte[count];
+			for (int i = 0; i < count; ++i) {
+				bytes[i] = (byte) mData[mParserOffset];
+				mParserOffset++;
+			}
 
-		byte[] bytes = new byte[count];
-		for (int i = 0; i < count; ++i) {
-			bytes[i] = (byte) mData[mParserOffset];
-			mParserOffset++;
+			BigInteger big = new BigInteger(bytes);
+			value = big.longValue();
 		}
 
-		BigInteger big = new BigInteger(bytes);
-
-		return new PInt(big.longValue());
+		return new PInt(value);
 	}
 
 	/**
@@ -343,6 +354,8 @@ public class PlistParser {
 			count = (int) readInt(readMarker()).getValue();
 		}
 
+		count *= 2; // 2 bytes per char
+
 		// read characters
 		byte[] bytes = new byte[count];
 		for (int i = 0; i < count; i++) {
@@ -376,7 +389,7 @@ public class PlistParser {
 	 * @param marker
 	 * @return
 	 */
-	private PArray readArray(final int marker) throws FormatException {
+	private PArray readArray(final int marker) {
 		int count;
 
 		// Get object count
@@ -404,7 +417,7 @@ public class PlistParser {
 	/**
 	 * 
 	 */
-	private PDict readDict(int marker) throws FormatException {
+	private PDict readDict(int marker) {
 		int count;
 
 		// Get map count
