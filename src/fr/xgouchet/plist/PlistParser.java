@@ -4,9 +4,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.NotSerializableException;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.charset.Charset;
-import java.text.ParseException;
 
 import android.util.Base64;
 import android.util.Log;
@@ -336,7 +336,14 @@ public class PlistParser {
 			mParserOffset++;
 		}
 
-		return new PString(new String(bytes, Charset.forName("US-ASCII")));
+		String value = null;
+		try {
+			value = new String(bytes, "US-ASCII");
+		} catch (UnsupportedEncodingException e) {
+			value = new String(bytes);
+		}
+
+		return new PString(value);
 	}
 
 	/**
