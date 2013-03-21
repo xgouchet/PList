@@ -6,7 +6,7 @@ import java.io.InputStream;
 import java.io.NotSerializableException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
+import java.nio.ByteBuffer;
 
 import android.util.Base64;
 import android.util.Log;
@@ -43,6 +43,8 @@ public class PlistParser {
 	private static final int TYPE_ARRAY = 0xA0;
 	private static final int TYPE_SET = 0xC0;
 	private static final int TYPE_DICT = 0xD0;
+
+	private final static long EPOCH = 978307200000L;
 
 	public PlistParser() {
 	}
@@ -311,7 +313,17 @@ public class PlistParser {
 			mParserOffset++;
 		}
 
-		return new PDate(Float.intBitsToFloat((int) value));
+		double asDouble = 0;
+		if (count == 8) {
+			asDouble = Double.longBitsToDouble(value);
+		} else if (count == 4) {
+			asDouble = Float.intBitsToFloat((int) value);
+		} else {
+			throw new IllegalArgumentException("Cannot convert " + count
+					+ " bytes to date");
+		}
+
+		return new PDate(EPOCH + (long) (1000 * asDouble));
 	}
 
 	/**
@@ -370,7 +382,14 @@ public class PlistParser {
 			mParserOffset++;
 		}
 
-		return new PString(new String(bytes, Charset.forName("UTF-16BE")));
+		String value = null;
+		try {
+			value = new String(bytes, "UTF-16BE");
+		} catch (UnsupportedEncodingException e) {
+			value = new String(bytes);
+		}
+
+		return new PString(value);
 	}
 
 	private PData readData(int marker) {
