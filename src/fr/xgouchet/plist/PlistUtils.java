@@ -6,11 +6,10 @@ import java.io.InputStream;
 
 public final class PlistUtils {
 
-	public static boolean isBinaryPlist(final File source) {
+	public static boolean isBinaryPlist(final InputStream input) {
 		boolean result;
 
 		try {
-			final InputStream input = new FileInputStream(source.getPath());
 			final byte[] header = new byte[8];
 
 			input.read(header, 0, 8);
@@ -24,7 +23,25 @@ public final class PlistUtils {
 			result &= (header[5] == 0x74); // t
 			// The two next bytes are the version number
 
-			input.close();
+		} catch (Exception e) {
+			result = false;
+		} finally {
+			try {
+				input.close();
+			} catch (Exception e) {
+				// ignore this exception
+			}
+		}
+
+		return result;
+	}
+
+	public static boolean isBinaryPlist(final File source) {
+		boolean result;
+
+		try {
+			final InputStream input = new FileInputStream(source.getPath());
+			result = isBinaryPlist(input);
 		} catch (Exception e) {
 			result = false;
 		}
